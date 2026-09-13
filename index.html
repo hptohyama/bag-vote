@@ -6,6 +6,8 @@
 <title>配布バッグ投票</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
 <style>
   :root {
@@ -259,6 +261,7 @@
   }
   @keyframes loadspin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .loading__dot { animation: none; } }
+  .loading small { font-size: 13px; font-weight: 500; }
   .loaderr b { color: var(--danger); font-size: 16px; }
   .loaderr span { font-weight: 500; }
 </style>
@@ -562,13 +565,20 @@
 
   // 投票を送る。text/plain で送ると、ブラウザの事前確認（プリフライト）なしで Apps Script に届く
   async function send(payload) {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'vote', name: payload.name, bagId: payload.bagId }),
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return res.json();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000);
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'vote', name: payload.name, bagId: payload.bagId }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async function submit(e) {
@@ -595,7 +605,7 @@
         showError((res && res.message) || '送信できませんでした。もう一度お試しください。');
       }
     } catch (err) {
-      showError('送信できませんでした。電波の良い場所で、もう一度「この内容で投票する」を押してください。');
+      showError('送信できたか確認できませんでした。もう一度「この内容で投票する」を押してください（送信済みの場合は「投票済み」と表示されます）。');
     } finally {
       sending = false;
       setBusy(false);
@@ -604,25 +614,53 @@
 
   /* ---------- 初期表示とイベント ---------- */
 
-  // 候補と締切を Apps Script から読み込んで、画面を組み立てる
-  async function load() {
-    const cards = $('#cards');
-    cards.innerHTML = '<p class="loading" role="status"><span class="loading__dot" aria-hidden="true"></span>候補を読み込んでいます…</p>';
+  // 候補と締切を Apps Script から1回読み込む（timeoutMs を過ぎたら打ち切る）
+  async function fetchData(timeoutMs) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(API_URL + '?action=data');
+      const res = await fetch(API_URL + '?action=data', { cache: 'no-store', signal: ctrl.signal });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       if (!data || !data.ok) throw new Error((data && data.message) || 'no data');
-      BAGS = data.bags;
-      DEADLINE = new Date(data.deadline);
-      closed = Date.now() > DEADLINE.getTime();
-    } catch (err) {
+      return data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // 候補と締切を読み込んで、画面を組み立てる。
+  // Apps Script は、しばらく使われていないと最初の応答に10秒以上かかったり失敗したりするので、自動でやり直す
+  const LOAD_TRIES = 3;
+  async function load() {
+    const cards = $('#cards');
+    const showLoading = (text, sub) => {
+      cards.innerHTML = '<p class="loading" role="status"><span class="loading__dot" aria-hidden="true"></span>' +
+        text + (sub ? '<small>' + sub + '</small>' : '') + '</p>';
+    };
+    let data = null;
+    for (let i = 1; i <= LOAD_TRIES && !data; i++) {
+      if (i === 1) showLoading('候補を読み込んでいます…');
+      else showLoading('もう一度読み込んでいます…（' + i + '回目）', '混み合っているようです。このままお待ちください');
+      const slow = i === 1 ? setTimeout(() => showLoading('候補を読み込んでいます…', '混み合っていると10秒ほどかかることがあります'), 5000) : null;
+      try {
+        data = await fetchData(i === 1 ? 20000 : 30000);
+      } catch (err) {
+        if (i < LOAD_TRIES) await new Promise((resolve) => setTimeout(resolve, 1500));
+      } finally {
+        clearTimeout(slow);
+      }
+    }
+    if (!data) {
       cards.innerHTML = '<div class="loaderr" role="alert"><b>候補を読み込めませんでした</b>' +
-        '<span>電波の良い場所で、もう一度お試しください。</span>' +
+        '<span>少し時間をおいて、「読み込み直す」を押してください。</span>' +
         '<button type="button" class="btn btn--ghost" id="retry">読み込み直す</button></div>';
       $('#retry').addEventListener('click', load);
       return;
     }
+    BAGS = data.bags;
+    DEADLINE = new Date(data.deadline);
+    closed = Date.now() > DEADLINE.getTime();
     cards.innerHTML = BAGS.map(cardHTML).join('');
     $('#count').textContent = BAGS.length;
     $('#deadlineDate').textContent = DEADLINE.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
