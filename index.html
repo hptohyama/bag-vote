@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>配布バッグ投票</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --ground: #F7F8FA;
+    --surface: #FFFFFF;
+    --surface-2: #EBEFF5;
+    --ink: #162033;
+    --muted: #5A6477;
+    --line: #D8DEE8;
+    --accent: #2447D6;
+    --accent-hover: #1B38B0;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #E6ECFF;
+    --marker: #FFE14A;
+    --marker-ink: #162033;
+    --marker-band: #FFE14A;
+    --ok: #157A4B;
+    --ok-soft: #E0F2E8;
+    --danger: #B93A2F;
+    --danger-soft: #FBEAE8;
+    --paper: #FFFFFF;
+    --a4-ink: #2447D6;
+    --bag: #D3DBE8;
+    --shadow: 0 0 0 1px rgba(22, 32, 51, .07), 0 1px 2px rgba(22, 32, 51, .05), 0 6px 20px rgba(22, 32, 51, .06);
+    --radius: 16px;
+    --font: "Zen Kaku Gothic New", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Meiryo", sans-serif;
+    --num: "Barlow Condensed", "Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+    color-scheme: light; /* 端末がダークモードでも白ベースで表示する */
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.65;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+  }
+  img { display: block; max-width: 100%; }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--num); font-variant-numeric: tabular-nums; }
+  .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding-inline: 16px; }
+
+  /* ヘッダー */
+  .top { padding: 24px 0 4px; }
+  .eyebrow { margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--muted); }
+  .top h1 { margin: 0; font-size: clamp(24px, 6.6vw, 34px); line-height: 1.35; font-weight: 700; }
+  .top h1 .phrase { display: inline-block; }
+  .top h1 mark { color: inherit; background: linear-gradient(transparent 60%, var(--marker-band) 60%); padding: 0 2px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .pill {
+    display: inline-flex; align-items: baseline; gap: 4px;
+    padding: 3px 12px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--line);
+    font-size: 13.5px; font-weight: 500;
+  }
+  .pill b { font-family: var(--num); font-size: 18px; font-weight: 600; }
+
+  /* お知らせ */
+  .notice {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+    margin: 16px 0 0; padding: 12px 16px; border-radius: 12px; font-size: 14.5px;
+  }
+  .notice--ok { background: var(--ok-soft); }
+  .notice--ok b { color: var(--ok); }
+  .notice--closed { background: var(--danger-soft); }
+  .notice--closed b { color: var(--danger); }
+  .linkbtn {
+    padding: 4px 0; border: 0; background: none; cursor: pointer;
+    color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 3px;
+  }
+
+  .legend { display: flex; align-items: center; gap: 10px; max-width: 600px; margin: 20px auto 12px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+  .legend svg { flex: none; width: 36px; height: 28px; }
+  @media (min-width: 960px) { .legend { max-width: none; } }
+
+  /* カード */
+  .grid { display: grid; gap: 16px; max-width: 600px; margin: 0 auto; }
+  @media (min-width: 960px) { .grid { max-width: none; grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+  .bag {
+    display: flex; flex-direction: column;
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+    transition: box-shadow .15s;
+  }
+  .bag.is-picked { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
+  .bag__media { position: relative; display: block; aspect-ratio: 4 / 3; background: #FFFFFF; border-radius: var(--radius) var(--radius) 0 0; overflow: hidden; }
+  .bag__media img { width: 100%; height: 100%; object-fit: contain; padding: 14px; transition: transform .2s; }
+  .bag__media:hover img { transform: scale(1.03); }
+  .bag__open {
+    position: absolute; right: 12px; bottom: 12px; padding: 2px 10px; border-radius: 999px;
+    background: rgba(22, 32, 51, .78); color: #FFFFFF; font-size: 12.5px; font-weight: 700;
+  }
+  .bag__no {
+    position: absolute; top: 12px; left: 12px; padding: 1px 10px; border-radius: 8px;
+    background: #162033; color: #FFFFFF; font-size: 17px; font-weight: 600;
+  }
+  .bag__flag {
+    position: absolute; top: 12px; right: 12px; padding: 3px 10px; border-radius: 8px;
+    background: var(--marker); color: var(--marker-ink); font-size: 13px; font-weight: 700;
+    opacity: 0; transform: translateY(-4px); transition: opacity .18s, transform .18s;
+  }
+  .bag.is-picked .bag__flag { opacity: 1; transform: none; }
+  .bag__body { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 4px; }
+  .bag__head { display: flex; flex-direction: column; gap: 2px; }
+  .bag__name { margin: 0; font-size: 19px; line-height: 1.4; font-weight: 700; }
+  .bag__note { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--muted); }
+
+  .fit { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 14px; margin: 0; padding: 12px; border-radius: 12px; background: var(--surface-2); }
+  .fit svg { display: block; width: 120px; height: auto; }
+  .fit figcaption { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .fit__dim { font-size: 13px; color: var(--muted); line-height: 1.3; }
+  .fit__dim small { display: block; font-size: 12px; }
+  .fit__dim b { font-size: 24px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+  .fit__a4 { padding: 2px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; background: var(--ok-soft); color: var(--ok); }
+  .fit__a4.is-tight { background: var(--marker); color: var(--marker-ink); }
+  .fit__a4.is-no { background: var(--danger-soft); color: var(--danger); }
+  .s-bag { fill: var(--bag); }
+  .s-edge { fill: none; stroke: var(--ink); stroke-width: 1.5; }
+  .s-strap { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
+  .s-a4 { fill: var(--paper); stroke: var(--a4-ink); stroke-width: 1.2; stroke-dasharray: 3 2; }
+  .s-line { stroke: var(--marker); stroke-width: 3; stroke-linecap: round; }
+  .s-txt { fill: var(--a4-ink); font-family: var(--num); font-size: 9px; font-weight: 600; }
+
+  .gauge { display: grid; gap: 5px; }
+  .gauge__head { display: flex; align-items: baseline; gap: 4px; font-size: 13px; color: var(--muted); }
+  .gauge__head b { font-family: var(--num); font-size: 21px; font-weight: 600; color: var(--ink); margin-left: 4px; }
+  .gauge__lv { margin-left: auto; font-size: 12.5px; font-weight: 700; color: var(--ink); }
+  .gauge__track { position: relative; height: 10px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .gauge__track span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: var(--accent); }
+  .gauge__scale { display: flex; justify-content: space-between; font-family: var(--num); font-size: 12px; color: var(--muted); }
+
+  .specs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--line); }
+  .specs div { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .specs div:nth-child(odd) { padding-right: 12px; }
+  .specs dt { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .specs dd { margin: 0; font-size: 14px; font-weight: 700; line-height: 1.45; }
+  .specs dd .num { font-size: 19px; }
+
+  .bag__link {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+    min-height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--surface); color: var(--ink);
+    font-size: 14px; font-weight: 700; text-decoration: none;
+  }
+  .bag__link:hover { border-color: var(--accent); color: var(--accent); }
+  .bag__link span { color: var(--muted); }
+  .bag__foot { padding: 8px 16px 16px; }
+
+  .pick {
+    width: 100%; min-height: 54px; border: 2px solid var(--accent); border-radius: 12px;
+    background: var(--surface); color: var(--accent);
+    font-size: 16px; font-weight: 700; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .pick:hover { background: var(--accent-soft); }
+  .pick[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .pick .pick__on, .pick[aria-pressed="true"] .pick__off { display: none; }
+  .pick[aria-pressed="true"] .pick__on { display: inline; }
+  .pick:disabled { border-color: var(--line); background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+
+  .foot { margin-top: 24px; font-size: 12.5px; color: var(--muted); text-align: center; }
+
+  /* 下部の選択バー */
+  .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: var(--surface); border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 20px rgba(22, 32, 51, .08);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .dock__in { display: flex; align-items: center; gap: 12px; max-width: 720px; margin: 0 auto; padding: 12px 16px; }
+  .dock__thumb { flex: none; width: 52px; height: 52px; border-radius: 10px; background: var(--surface-2); overflow: hidden; }
+  .dock__thumb.is-empty { border: 2px dashed var(--line); background: transparent; }
+  .dock__thumb img { width: 100%; height: 100%; object-fit: contain; background: #FFFFFF; }
+  .dock__text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+  .dock__label { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .dock__name { overflow: hidden; font-size: 15px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 52px; padding: 0 20px; border: 0; border-radius: 12px;
+    font-size: 16px; font-weight: 700; white-space: nowrap; cursor: pointer;
+  }
+  .btn--primary { background: var(--accent); color: var(--accent-ink); }
+  .btn--primary:hover { background: var(--accent-hover); }
+  .btn--primary:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+  .btn--ghost { background: var(--surface-2); color: var(--ink); }
+  .btn--block { width: 100%; }
+  .btn.nudge { animation: nudge .45s ease; }
+  @keyframes nudge { 40% { transform: scale(1.07); } }
+
+  /* 投票シート */
+  .sheet {
+    width: 100%; max-width: 560px; max-height: 92vh; margin: auto auto 0; padding: 0;
+    border: 0; border-radius: 20px 20px 0 0; background: var(--surface); color: var(--ink);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, .25);
+  }
+  .sheet::backdrop { background: rgba(9, 13, 20, .55); }
+  @media (min-width: 720px) { .sheet { margin: auto; border-radius: 20px; } }
+  .sheet__in { padding: 8px 20px calc(20px + env(safe-area-inset-bottom)); }
+  .sheet__grab { width: 40px; height: 4px; margin: 4px auto 8px; border-radius: 2px; background: var(--line); }
+  #voteForm { display: flex; flex-direction: column; gap: 16px; }
+  .sheet__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .sheet__head h2 { margin: 0; font-size: 20px; }
+  .x { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--surface-2); font-size: 24px; line-height: 1; cursor: pointer; }
+  .chosen { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 12px; background: var(--accent-soft); }
+  .chosen img { flex: none; width: 64px; height: 64px; object-fit: contain; border-radius: 10px; background: #FFFFFF; }
+  .chosen small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .chosen strong { font-size: 15.5px; line-height: 1.4; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+  .badge { padding: 0 8px; border-radius: 6px; background: var(--ink); color: var(--surface); font-size: 11.5px; font-weight: 700; }
+  .field input {
+    width: 100%; min-height: 52px; padding: 12px 14px;
+    border: 2px solid var(--line); border-radius: 12px; background: var(--surface);
+    font-size: 17px;
+  }
+  .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field input[aria-invalid="true"] { border-color: var(--danger); }
+  .help { margin: 0; font-size: 13px; color: var(--muted); }
+  .err { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--danger-soft); color: var(--danger); font-size: 14px; font-weight: 700; }
+  .fine { margin: -6px 0 0; font-size: 12.5px; color: var(--muted); text-align: center; }
+  .spinner { width: 18px; height: 18px; border: 2.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .done { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px 0 4px; text-align: center; }
+  .done__mark { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--ok); color: var(--surface); }
+  .done__mark svg { width: 38px; height: 38px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .done h2 { margin: 0; font-size: 22px; }
+  .done h2:focus { outline: none; }
+  .done p { margin: 0; }
+  .done__bag { padding: 8px 14px; border-radius: 10px; background: var(--accent-soft); font-weight: 700; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
+  .loading, .loaderr {
+    grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 12px;
+    margin: 0; padding: 44px 16px; border-radius: var(--radius); background: var(--surface);
+    color: var(--muted); font-size: 15px; font-weight: 700; text-align: center;
+  }
+  .loading__dot {
+    width: 26px; height: 26px; border-radius: 50%;
+    border: 3px solid var(--line); border-top-color: var(--accent);
+    animation: loadspin .8s linear infinite;
+  }
+  @keyframes loadspin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .loading__dot { animation: none; } }
+  .loaderr b { color: var(--danger); font-size: 16px; }
+  .loaderr span { font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">ポスティング用ショルダーバッグ</p>
+    <h1><span class="phrase">使ってみたいバッグに</span><span class="phrase"><mark>投票</mark>してください</span></h1>
+    <div class="meta">
+      <span class="pill">締切 <b id="deadlineDate">9/30</b><span id="deadlineDow">（水）</span></span>
+      <span class="pill">1人<b>1</b>回まで</span>
+      <span class="pill">候補<b id="count">–</b>種類</span>
+    </div>
+    <div id="status"></div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <p class="legend">
+      <svg viewBox="0 0 36 28" aria-hidden="true">
+        <rect class="s-bag" x="1" y="6" width="34" height="21" rx="2"></rect>
+        <rect class="s-a4" x="8" y="12" width="20" height="14"></rect>
+        <rect class="s-edge" x="1" y="6" width="34" height="21" rx="2"></rect>
+      </svg>
+      <span>図の四角はバッグ正面の大きさです（すべて同じ縮尺）。点線の紙がA4のチラシです。</span>
+    </p>
+    <div class="grid" id="cards"></div>
+    <p class="foot">商品の情報は2026年9月時点のものです。</p>
+  </div>
+</main>
+
+<div class="dock" role="region" aria-label="選んだバッグ">
+  <div class="dock__in">
+    <div class="dock__thumb is-empty" id="dockThumb"><img id="dockImg" alt="" referrerpolicy="no-referrer" hidden></div>
+    <div class="dock__text" aria-live="polite">
+      <span class="dock__label" id="dockLabel">まだ選んでいません</span>
+      <span class="dock__name" id="dockName">1つ選んでください</span>
+    </div>
+    <button type="button" class="btn btn--primary" id="toVote" disabled>投票へ進む</button>
+  </div>
+</div>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+  <div class="sheet__in">
+    <div class="sheet__grab" aria-hidden="true"></div>
+    <form id="voteForm" novalidate>
+      <div class="sheet__head">
+        <h2 id="sheetTitle">投票する</h2>
+        <button type="button" class="x" id="closeSheet" aria-label="閉じる" autofocus>×</button>
+      </div>
+      <div class="chosen">
+        <img id="chosenImg" alt="" referrerpolicy="no-referrer">
+        <div><small>選んだバッグ</small><strong id="chosenName"></strong></div>
+      </div>
+      <div class="field">
+        <label for="voterName">あなたの名前 <span class="badge">必須</span></label>
+        <input id="voterName" name="name" type="text" autocomplete="name" maxlength="40" placeholder="例：山田 太郎" enterkeyhint="done" aria-describedby="nameHelp">
+        <p class="help" id="nameHelp">フルネームで入力してください。</p>
+        <p class="err" id="nameErr" role="alert" hidden></p>
+      </div>
+      <button type="submit" class="btn btn--primary btn--block" id="submitVote">この内容で投票する</button>
+      <p class="fine">投票は1人1回です。送信後は変更できません。</p>
+    </form>
+    <div class="done" id="done" hidden>
+      <div class="done__mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></div>
+      <h2 id="doneTitle" tabindex="-1">投票しました</h2>
+      <p><span id="doneName"></span>さん、ご協力ありがとうございました。</p>
+      <p class="done__bag" id="doneBag"></p>
+      <button type="button" class="btn btn--ghost btn--block" id="doneClose">閉じる</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  'use strict';
+
+  // 候補の読み込みと投票の記録は、スプレッドシートにつながった Apps Script が受け持つ
+  const API_URL = 'https://script.google.com/macros/s/AKfycbzNZPJ6AP1lhhWJyOK2USteOA5bKcll0UOPTHdC1VGWkYUYoPNYvMFcDpCx_vGA86k/exec';
+  const STORE_KEY = 'bag-vote-2026-09';
+  let BAGS = [];
+  let DEADLINE = null;
+  let closed = false;
+
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const byId = (id) => BAGS.find((b) => b.id === id) || null;
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  let picked = null;
+  let sending = false;
+
+  /* ---------- カードの組み立て ---------- */
+
+  // A4（21×29.7cm）がバッグ正面に入るか
+  function a4Fit(b) {
+    const land = b.w >= 29.7 && b.h >= 21;
+    const port = b.w >= 21 && b.h >= 29.7;
+    if (!land && !port) return { orient: null, level: 'no', label: 'A4は入りません' };
+    const orient = land ? 'land' : 'port';
+    const tight = land ? (b.w - 29.7 < 1 || b.h - 21 < 1) : (b.w - 21 < 1 || b.h - 29.7 < 1);
+    if (tight) return { orient, level: 'tight', label: 'A4がぎりぎり入る' };
+    return { orient, level: 'ok', label: land ? 'A4が横向きに入る' : 'A4が縦向きに入る' };
+  }
+
+  // 全バッグ共通の縮尺（1cm = 2）で正面図を描く
+  const S = 2, VW = 108, VH = 98, BASE = 94;
+  function fitSVG(b, fit) {
+    const bw = b.w * S, bh = b.h * S;
+    const x = (VW - bw) / 2, y = BASE - bh;
+    let paper = '';
+    if (fit.orient) {
+      const aw = (fit.orient === 'land' ? 29.7 : 21) * S;
+      const ah = (fit.orient === 'land' ? 21 : 29.7) * S;
+      const ax = (VW - aw) / 2, ay = BASE - 2 - ah;
+      paper =
+        `<rect class="s-a4" x="${ax}" y="${ay}" width="${aw}" height="${ah}"></rect>` +
+        `<text class="s-txt" x="${VW / 2}" y="${ay + ah * 0.24 + 3}" text-anchor="middle">A4</text>` +
+        `<line class="s-line" x1="${ax + aw * 0.2}" x2="${ax + aw * 0.8}" y1="${ay + ah * 0.48}" y2="${ay + ah * 0.48}"></line>` +
+        `<line class="s-line" x1="${ax + aw * 0.2}" x2="${ax + aw * 0.6}" y1="${ay + ah * 0.66}" y2="${ay + ah * 0.66}"></line>`;
+    }
+    return `<svg viewBox="0 0 ${VW} ${VH}" role="img" aria-label="正面の大きさ 幅${b.w}cm×高さ${b.h}cm。${fit.label}">` +
+      `<path class="s-strap" d="M${x + bw * 0.28} ${y} Q${VW / 2} ${y - 20} ${x + bw * 0.72} ${y}"></path>` +
+      `<rect class="s-bag" x="${x}" y="${y}" width="${bw}" height="${bh}" rx="3"></rect>` +
+      paper +
+      `<rect class="s-edge" x="${x}" y="${y}" width="${bw}" height="${bh}" rx="3"></rect>` +
+      `</svg>`;
+  }
+
+  function gusset(b) {
+    const level = b.d <= 6 ? '薄め' : b.d <= 12 ? 'ふつう' : '厚め';
+    const pct = Math.min(100, (b.d / 30) * 100);
+    return `<div class="gauge" role="img" aria-label="マチ（厚み）${b.d}cm、${level}">` +
+      `<div class="gauge__head"><span>マチ（厚み）</span><b>${b.d}</b><span>cm</span><span class="gauge__lv">${level}</span></div>` +
+      `<div class="gauge__track"><span style="width:${pct}%"></span></div>` +
+      `<div class="gauge__scale" aria-hidden="true"><span>0</span><span>15</span><span>30cm</span></div>` +
+      `</div>`;
+  }
+
+  function cardHTML(b) {
+    const fit = a4Fit(b);
+    return `<article class="bag" id="bag-${b.id}" data-id="${b.id}">
+      <a class="bag__media" href="${esc(b.url)}" target="_blank" rel="noopener" aria-label="${esc(b.name)}の商品ページを${esc(b.shop)}で見る">
+        <img src="${esc(b.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">
+        <span class="bag__no num">No.${b.id}</span>
+        <span class="bag__flag" aria-hidden="true">選択中</span>
+        <span class="bag__open" aria-hidden="true">${esc(b.shop)} ↗</span>
+      </a>
+      <div class="bag__body">
+        <div class="bag__head">
+          <h2 class="bag__name">${esc(b.name)}</h2>
+          <p class="bag__note">${esc(b.note)}</p>
+        </div>
+        <figure class="fit">
+          ${fitSVG(b, fit)}
+          <figcaption>
+            <span class="fit__dim"><small>幅×高さ×マチ（cm）</small><b class="num">${b.w}×${b.h}×${b.d}</b></span>
+            <span class="fit__a4 is-${fit.level}">${esc(fit.label)}</span>
+          </figcaption>
+        </figure>
+        ${gusset(b)}
+        <dl class="specs">
+          <div><dt>重さ</dt><dd>${b.weight ? `<span class="num">${b.weight}</span>g` : '記載なし'}</dd></div>
+          <div><dt>容量</dt><dd>約<span class="num">${b.liters}</span>L</dd></div>
+          <div><dt>持ち方</dt><dd>${esc(b.strap)}</dd></div>
+          <div><dt>素材</dt><dd>${esc(b.material)}</dd></div>
+        </dl>
+        <a class="bag__link" href="${esc(b.url)}" target="_blank" rel="noopener">${esc(b.shop)}で見る<span aria-hidden="true">↗</span></a>
+      </div>
+      <div class="bag__foot">
+        <button type="button" class="pick" data-pick="${b.id}" aria-pressed="false">
+          <span class="pick__off">このバッグを選ぶ</span><span class="pick__on">✓ 選択中</span>
+        </button>
+      </div>
+    </article>`;
+  }
+
+  /* ---------- 投票済みの記録（この端末） ---------- */
+
+  function readVoted() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
+  }
+  function writeVoted(v) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(v)); } catch (e) { /* 保存できなくても投票は完了している */ }
+  }
+  function clearVoted() {
+    try { localStorage.removeItem(STORE_KEY); } catch (e) { /* noop */ }
+  }
+
+  /* ---------- 画面の更新 ---------- */
+
+  function renderStatus() {
+    const box = $('#status');
+    if (closed) {
+      box.innerHTML = '<div class="notice notice--closed" role="status"><b>投票は締め切りました</b><span>ご協力ありがとうございました。</span></div>';
+      return;
+    }
+    const v = readVoted();
+    const bag = v && byId(v.bagId);
+    if (!v || !bag) { box.innerHTML = ''; return; }
+    box.innerHTML =
+      '<div class="notice notice--ok" role="status">' +
+      '<b>✓ この端末から投票済み</b>' +
+      `<span>${esc(v.name)}さん → No.${bag.id} ${esc(bag.name)}</span>` +
+      '<button type="button" class="linkbtn" id="another">別の人がこの端末で投票する</button>' +
+      '</div>';
+    $('#another').addEventListener('click', () => { clearVoted(); renderStatus(); });
+  }
+
+  function renderDock() {
+    const bag = byId(picked);
+    const img = $('#dockImg');
+    const btn = $('#toVote');
+    $('#dockThumb').classList.toggle('is-empty', !bag || closed);
+    if (closed) {
+      img.hidden = true;
+      $('#dockLabel').textContent = '受付終了';
+      $('#dockName').textContent = '投票は締め切りました';
+      btn.disabled = true;
+      return;
+    }
+    if (bag) {
+      img.src = bag.img;
+      img.hidden = false;
+      $('#dockLabel').textContent = '選択中';
+      $('#dockName').textContent = `No.${bag.id} ${bag.name}`;
+      btn.disabled = false;
+    } else {
+      img.hidden = true;
+      $('#dockLabel').textContent = 'まだ選んでいません';
+      $('#dockName').textContent = '1つ選んでください';
+      btn.disabled = true;
+    }
+  }
+
+  function setPicked(id) {
+    picked = id;
+    $$('[data-pick]').forEach((btn) => btn.setAttribute('aria-pressed', String(Number(btn.dataset.pick) === picked)));
+    $$('.bag').forEach((el) => el.classList.toggle('is-picked', Number(el.dataset.id) === picked));
+    renderDock();
+    if (picked) {
+      const btn = $('#toVote');
+      btn.classList.remove('nudge');
+      void btn.offsetWidth;
+      btn.classList.add('nudge');
+    }
+  }
+
+  /* ---------- 投票シート ---------- */
+
+  const sheet = $('#sheet');
+  const form = $('#voteForm');
+  const nameInput = $('#voterName');
+  const submitBtn = $('#submitVote');
+
+  function openSheet() {
+    const bag = byId(picked);
+    if (!bag) return;
+    $('#chosenImg').src = bag.img;
+    $('#chosenName').textContent = `No.${bag.id} ${bag.name}`;
+    form.hidden = false;
+    $('#done').hidden = true;
+    hideError();
+    if (typeof sheet.showModal === 'function') sheet.showModal();
+    else sheet.setAttribute('open', '');
+  }
+
+  function closeSheet() {
+    if (sending) return;
+    if (typeof sheet.close === 'function') sheet.close();
+    else { sheet.removeAttribute('open'); onSheetClosed(); }
+  }
+
+  function onSheetClosed() {
+    if ($('#done').hidden) return;
+    form.reset();
+    setPicked(null);
+    renderStatus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showError(message) {
+    const err = $('#nameErr');
+    err.textContent = message;
+    err.hidden = false;
+    nameInput.setAttribute('aria-invalid', 'true');
+  }
+  function hideError() {
+    $('#nameErr').hidden = true;
+    nameInput.removeAttribute('aria-invalid');
+  }
+
+  function setBusy(on) {
+    submitBtn.disabled = on;
+    form.setAttribute('aria-busy', String(on));
+    submitBtn.innerHTML = on ? '<span class="spinner" aria-hidden="true"></span>送信中…' : 'この内容で投票する';
+  }
+
+  // 投票を送る。text/plain で送ると、ブラウザの事前確認（プリフライト）なしで Apps Script に届く
+  async function send(payload) {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'vote', name: payload.name, bagId: payload.bagId }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return res.json();
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    if (sending) return;
+    const name = nameInput.value.trim();
+    if (!name) { showError('名前を入力してください。'); nameInput.focus(); return; }
+    if (!picked) { showError('バッグが選ばれていません。閉じてから選び直してください。'); return; }
+
+    sending = true;
+    setBusy(true);
+    hideError();
+    try {
+      const res = await send({ name, bagId: picked });
+      if (res && res.ok) {
+        writeVoted({ name: res.name, bagId: res.bagId });
+        const bag = byId(res.bagId);
+        $('#doneName').textContent = res.name;
+        $('#doneBag').textContent = `No.${bag.id} ${bag.name}`;
+        form.hidden = true;
+        $('#done').hidden = false;
+        $('#doneTitle').focus();
+      } else {
+        showError((res && res.message) || '送信できませんでした。もう一度お試しください。');
+      }
+    } catch (err) {
+      showError('送信できませんでした。電波の良い場所で、もう一度「この内容で投票する」を押してください。');
+    } finally {
+      sending = false;
+      setBusy(false);
+    }
+  }
+
+  /* ---------- 初期表示とイベント ---------- */
+
+  // 候補と締切を Apps Script から読み込んで、画面を組み立てる
+  async function load() {
+    const cards = $('#cards');
+    cards.innerHTML = '<p class="loading" role="status"><span class="loading__dot" aria-hidden="true"></span>候補を読み込んでいます…</p>';
+    try {
+      const res = await fetch(API_URL + '?action=data');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data || !data.ok) throw new Error((data && data.message) || 'no data');
+      BAGS = data.bags;
+      DEADLINE = new Date(data.deadline);
+      closed = Date.now() > DEADLINE.getTime();
+    } catch (err) {
+      cards.innerHTML = '<div class="loaderr" role="alert"><b>候補を読み込めませんでした</b>' +
+        '<span>電波の良い場所で、もう一度お試しください。</span>' +
+        '<button type="button" class="btn btn--ghost" id="retry">読み込み直す</button></div>';
+      $('#retry').addEventListener('click', load);
+      return;
+    }
+    cards.innerHTML = BAGS.map(cardHTML).join('');
+    $('#count').textContent = BAGS.length;
+    $('#deadlineDate').textContent = DEADLINE.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
+    $('#deadlineDow').textContent = '（' + DEADLINE.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', weekday: 'short' }) + '）';
+    if (closed) $$('[data-pick]').forEach((btn) => { btn.disabled = true; });
+    renderStatus();
+    renderDock();
+  }
+
+  renderDock();
+  load();
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-pick]');
+    if (!btn || btn.disabled) return;
+    const id = Number(btn.dataset.pick);
+    setPicked(picked === id ? null : id);
+  });
+
+  $('#toVote').addEventListener('click', openSheet);
+  $('#closeSheet').addEventListener('click', closeSheet);
+  $('#doneClose').addEventListener('click', closeSheet);
+  sheet.addEventListener('close', onSheetClosed);
+  sheet.addEventListener('cancel', (e) => { if (sending) e.preventDefault(); });
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
+  form.addEventListener('submit', submit);
+  nameInput.addEventListener('input', hideError);
+  // 日本語変換の確定ではなく、入力の確定でだけキーボードを閉じる
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    nameInput.blur();
+  });
+})();
+</script>
+</body>
+</html>
