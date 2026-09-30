@@ -279,7 +279,7 @@
     <p class="eyebrow">ポスティング用ショルダーバッグ</p>
     <h1><span class="phrase">使ってみたいバッグに</span><span class="phrase"><mark>投票</mark>してください</span></h1>
     <div class="meta">
-      <span class="pill">締切 <b id="deadlineDate">9/30</b><span id="deadlineDow">（水）</span></span>
+      <span class="pill">締切 <b id="deadlineDate">10/4</b><span id="deadlineDow">（日）19:00まで</span></span>
       <span class="pill">1人<b>1</b>回まで</span>
       <span class="pill">候補<b id="count">–</b>種類</span>
     </div>
@@ -693,7 +693,9 @@
     cards.innerHTML = BAGS.map(cardHTML).join('');
     $('#count').textContent = BAGS.length;
     $('#deadlineDate').textContent = DEADLINE.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric' });
-    $('#deadlineDow').textContent = '（' + DEADLINE.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', weekday: 'short' }) + '）';
+    const hhmm = DEADLINE.toLocaleTimeString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false });
+    $('#deadlineDow').textContent = '（' + DEADLINE.toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo', weekday: 'short' }) + '）' +
+      (hhmm === '23:59' ? '' : ' ' + hhmm + 'まで');
     if (closed) $$('[data-pick]').forEach((btn) => { btn.disabled = true; });
     renderStatus();
     renderDock();
