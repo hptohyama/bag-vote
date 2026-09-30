@@ -225,13 +225,19 @@
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field label { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
   .badge { padding: 0 8px; border-radius: 6px; background: var(--ink); color: var(--surface); font-size: 11.5px; font-weight: 700; }
-  .field input {
+  .field input, .field select {
     width: 100%; min-height: 52px; padding: 12px 14px;
     border: 2px solid var(--line); border-radius: 12px; background: var(--surface);
     font-size: 17px;
   }
-  .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  .field input[aria-invalid="true"] { border-color: var(--danger); }
+  .field select {
+    appearance: none; -webkit-appearance: none; padding-right: 42px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 23px) calc(50% - 2px), calc(100% - 16px) calc(50% - 2px);
+    background-size: 8px 8px, 8px 8px; background-repeat: no-repeat;
+  }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .field input[aria-invalid="true"], .field select[aria-invalid="true"] { border-color: var(--danger); }
   .help { margin: 0; font-size: 13px; color: var(--muted); }
   .err { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--danger-soft); color: var(--danger); font-size: 14px; font-weight: 700; }
   .fine { margin: -6px 0 0; font-size: 12.5px; color: var(--muted); text-align: center; }
@@ -323,8 +329,15 @@
         <label for="voterName">あなたの名前 <span class="badge">必須</span></label>
         <input id="voterName" name="name" type="text" autocomplete="name" maxlength="40" placeholder="例：山田 太郎" enterkeyhint="done" aria-describedby="nameHelp">
         <p class="help" id="nameHelp">フルネームで入力してください。</p>
-        <p class="err" id="nameErr" role="alert" hidden></p>
       </div>
+      <div class="field">
+        <label for="voterSite">拠点 <span class="badge">必須</span></label>
+        <select id="voterSite" name="site" aria-describedby="siteHelp">
+          <option value="">選んでください</option>
+        </select>
+        <p class="help" id="siteHelp">自分の拠点を選んでください。</p>
+      </div>
+      <p class="err" id="nameErr" role="alert" hidden></p>
       <button type="submit" class="btn btn--primary btn--block" id="submitVote">この内容で投票する</button>
       <p class="fine">投票は1人1回です。送信後は変更できません。</p>
     </form>
@@ -468,7 +481,7 @@
     box.innerHTML =
       '<div class="notice notice--ok" role="status">' +
       '<b>✓ この端末から投票済み</b>' +
-      `<span>${esc(v.name)}さん → No.${bag.id} ${esc(bag.name)}</span>` +
+      `<span>${esc(v.name)}さん${v.site ? `（${esc(v.site)}）` : ''} → No.${bag.id} ${esc(bag.name)}</span>` +
       '<button type="button" class="linkbtn" id="another">別の人がこの端末で投票する</button>' +
       '</div>';
     $('#another').addEventListener('click', () => { clearVoted(); renderStatus(); });
@@ -518,6 +531,18 @@
   const sheet = $('#sheet');
   const form = $('#voteForm');
   const nameInput = $('#voterName');
+  const siteInput = $('#voterSite');
+
+  // 拠点プルダウンの中身。Apps Script の CONFIG.SITES から受け取る（受け取れないときは下の4拠点）
+  const SITES_FALLBACK = ['関西', '稲毛', '東戸塚', '五香'];
+  function renderSites(list) {
+    const sites = Array.isArray(list) && list.length ? list : SITES_FALLBACK;
+    const keep = siteInput.value;
+    siteInput.innerHTML = '<option value="">選んでください</option>' +
+      sites.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    if (keep && sites.indexOf(keep) >= 0) siteInput.value = keep;
+  }
+  renderSites(null);
   const submitBtn = $('#submitVote');
 
   function openSheet() {
@@ -546,15 +571,16 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  function showError(message) {
+  function showError(message, field) {
     const err = $('#nameErr');
     err.textContent = message;
     err.hidden = false;
-    nameInput.setAttribute('aria-invalid', 'true');
+    (field || nameInput).setAttribute('aria-invalid', 'true');
   }
   function hideError() {
     $('#nameErr').hidden = true;
     nameInput.removeAttribute('aria-invalid');
+    siteInput.removeAttribute('aria-invalid');
   }
 
   function setBusy(on) {
@@ -571,7 +597,7 @@
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'vote', name: payload.name, bagId: payload.bagId }),
+        body: JSON.stringify({ action: 'vote', name: payload.name, bagId: payload.bagId, site: payload.site }),
         signal: ctrl.signal,
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -585,16 +611,18 @@
     e.preventDefault();
     if (sending) return;
     const name = nameInput.value.trim();
+    const site = siteInput.value;
     if (!name) { showError('名前を入力してください。'); nameInput.focus(); return; }
+    if (!site) { showError('拠点を選んでください。', siteInput); siteInput.focus(); return; }
     if (!picked) { showError('バッグが選ばれていません。閉じてから選び直してください。'); return; }
 
     sending = true;
     setBusy(true);
     hideError();
     try {
-      const res = await send({ name, bagId: picked });
+      const res = await send({ name, bagId: picked, site });
       if (res && res.ok) {
-        writeVoted({ name: res.name, bagId: res.bagId });
+        writeVoted({ name: res.name, bagId: res.bagId, site: res.site || site });
         const bag = byId(res.bagId);
         $('#doneName').textContent = res.name;
         $('#doneBag').textContent = `No.${bag.id} ${bag.name}`;
@@ -659,6 +687,7 @@
       return;
     }
     BAGS = data.bags;
+    renderSites(data.sites);
     DEADLINE = new Date(data.deadline);
     closed = Date.now() > DEADLINE.getTime();
     cards.innerHTML = BAGS.map(cardHTML).join('');
@@ -688,6 +717,7 @@
   sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
   form.addEventListener('submit', submit);
   nameInput.addEventListener('input', hideError);
+  siteInput.addEventListener('change', hideError);
   // 日本語変換の確定ではなく、入力の確定でだけキーボードを閉じる
   nameInput.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
